@@ -9,17 +9,7 @@ const {
 const { createResource } = require('./musicSource');
 const { getOrCreateGuildConfig } = require('./config');
 const { formatText } = require('./textUtils');
-const { buildOfficeSelectMessage } = require('./officeSelectUI');
-
-// guildId -> { connection, player, sessions: Map<userId, sessionData> }
-const guildState = new Map();
-
-function getState(guildId) {
-  if (!guildState.has(guildId)) {
-    guildState.set(guildId, { connection: null, player: null, sessions: new Map() });
-  }
-  return guildState.get(guildId);
-}
+const { getState } = require('./state');
 
 async function startMusic(guildId) {
   const state = getState(guildId);
@@ -88,19 +78,22 @@ async function handleUserJoined(client, guild, member, cfg) {
     await startMusic(guildId);
   }
 
-  // Send DM with office selection
   const userId = member.id;
-  if (state.sessions.has(userId)) return; // already in session
+  if (state.sessions.has(userId)) return;
+
+  // Lazy-require to avoid circular dependency
+  const { buildOfficeSelectMessage } = require('./officeSelectUI');
 
   try {
     const dmChannel = await member.createDM();
-    const { content, components } = buildOfficeSelectMessage(guild, cfg, 0);
     const dmText = formatText(cfg.dmText || 'Hallo {user}, bitte wähle ein Büro:', {
       user: member.displayName,
       server: guild.name,
     });
 
-    const msg = await dmChannel.send({ content: dmText + '\n\u200B', components });
+    const { components } = buildOfficeSelectMessage(guild, cfg, 0);
+    const msg = await dmChannel.send({ content: dmText, components });
+
     state.sessions.set(userId, {
       requestMessageId: null,
       requestChannelId: cfg.requestChannelId,
@@ -112,7 +105,7 @@ async function handleUserJoined(client, guild, member, cfg) {
       page: 0,
     });
   } catch (e) {
-    console.error('[Bot] DM failed:', e.message);
+    console.error('[Bot] DM fehlgeschlagen:', e.message);
   }
 }
 
@@ -122,16 +115,6 @@ function leaveWaitingRoom(guildId) {
   const conn = getVoiceConnection(guildId);
   if (conn) conn.destroy();
   state.connection = null;
-}
-
-function setVolume(guildId, percent) {
-  const state = getState(guildId);
-  if (state.player) {
-    // Re-start music to apply volume via new resource
-    const cfg = getOrCreateGuildConfig(guildId);
-    cfg.volume = percent;
-    startMusic(guildId);
-  }
 }
 
 function getSession(guildId, userId) {
@@ -146,27 +129,11 @@ function deleteSession(guildId, userId) {
   getState(guildId).sessions.delete(userId);
 }
 
-function getAllSessions(guildId) {
-  return getState(guildId).sessions;
-}
-
-function getBusyOfficeIds(guildId) {
-  const sessions = getState(guildId).sessions;
-  const busy = new Set();
-  for (const s of sessions.values()) {
-    if (s.officeChannelId && s.acceptedBy) busy.add(s.officeChannelId);
-  }
-  return busy;
-}
-
 module.exports = {
   handleUserJoined,
   leaveWaitingRoom,
-  setVolume,
   startMusic,
   getSession,
   setSession,
   deleteSession,
-  getAllSessions,
-  getBusyOfficeIds,
 };
