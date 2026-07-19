@@ -1,0 +1,221 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+body.center-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Login ── */
+.login-box {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 2.5rem 3rem;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+
+.login-box h1 { font-size: 1.6rem; margin-bottom: 0.5rem; color: #7289da; }
+.login-box h2 { font-size: 1rem; font-weight: 400; color: #99aab5; margin-bottom: 1.5rem; }
+
+.login-box input[type="password"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #0f3460;
+  background: #0f3460;
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  outline: none;
+}
+
+.login-box input[type="password"]:focus { border-color: #7289da; }
+
+.login-box button {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: none;
+  background: #7289da;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-box button:hover { background: #5b6fb5; }
+
+.error {
+  background: rgba(237, 66, 69, 0.15);
+  color: #ed4245;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ── Header ── */
+header {
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header h1 { font-size: 1.3rem; color: #7289da; }
+
+.logout-btn {
+  color: #99aab5;
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.logout-btn:hover { color: #ed4245; border-color: #ed4245; }
+
+/* ── Main ── */
+main { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+
+.server-select {
+  margin-bottom: 1.5rem;
+}
+
+.server-select label {
+  font-size: 0.9rem;
+  color: #99aab5;
+  margin-right: 0.75rem;
+}
+
+.server-select select {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #0f3460;
+  background: #16213e;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* ── Cards ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.card h2 {
+  font-size: 1rem;
+  color: #7289da;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #0f3460;
+}
+
+/* ── Forms ── */
+form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #99aab5;
+  margin-bottom: 1rem;
+}
+
+form input[type="text"],
+form input[type="number"],
+form input[type="time"],
+form select,
+form textarea {
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #0f3460;
+  background: #0f3460;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+form input:focus, form select:focus, form textarea:focus { border-color: #7289da; }
+form textarea { resize: vertical; }
+
+form button[type="submit"] {
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background: #7289da;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+form button[type="submit"]:hover { background: #5b6fb5; }
+
+.save-msg {
+  font-size: 0.85rem;
+  margin-left: 0.75rem;
+  color: #57f287;
+  align-self: center;
+}
+
+/* ── Office list ── */
+.office-list {
+  list-style: none;
+  margin-bottom: 0.75rem;
+}
+
+.office-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #0f3460;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+.office-list li:last-child { border-bottom: none; }
+
+/* ── Hint ── */
+.hint {
+  font-size: 0.82rem;
+  color: #99aab5;
+  margin-top: 0.5rem;
+}
+
+code {
+  background: #0f3460;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: #7289da;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  main { padding: 1rem; }
+  .cards { grid-template-columns: 1fr; }
+  header { padding: 1rem; }
+  header h1 { font-size: 1rem; }
+}
