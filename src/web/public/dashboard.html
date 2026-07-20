@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>Support-Bot – Verwaltung</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <span class="bell">🔔</span>
+      <h1>Empfang – Verwaltung</h1>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span id="user-label" class="hint mono" style="margin:0;"></span>
+      <select id="guild-select"></select>
+      <button class="secondary" id="pause-toggle">⏸ Bot pausieren</button>
+      <button class="secondary" id="logout">Abmelden</button>
+    </div>
+  </div>
+
+  <main>
+    <!-- Bot-Profil -->
+    <section class="card" id="bot-profile-card">
+      <div class="eyebrow">Bot</div>
+      <h2>Bot-Profil</h2>
+      <div class="row">
+        <div>
+          <label>Bot-Name</label>
+          <input type="text" id="botUsername" placeholder="Anzeigename des Bots" />
+        </div>
+        <div>
+          <label>Avatar-URL (Bild)</label>
+          <input type="text" id="botAvatarUrl" placeholder="https://.../avatar.png" />
+        </div>
+        <div>
+          <label>Banner-URL (Bild)</label>
+          <input type="text" id="botBannerUrl" placeholder="https://.../banner.png" />
+        </div>
+      </div>
+      <div class="hint">Name/Avatar/Banner ändern ist bei Discord rate-limitiert (der Name z. B. nur wenige Male pro Stunde) – bei Fehler erscheint eine Meldung.</div>
+      <button id="save-bot-profile">Übernehmen</button>
+      <span class="save-status" id="status-bot-profile"></span>
+    </section>
+    <!-- Server-Spitzname -->
+    <section class="card">
+      <div class="eyebrow">Nur dieser Server</div>
+      <h2>Bot-Spitzname auf diesem Server</h2>
+      <div class="hint">Avatar &amp; Banner gelten bei Discord immer serverübergreifend gleich (Plattform-Limitierung) – nur der Name/Spitzname kann pro Server unterschiedlich sein.</div>
+      <input type="text" id="guildNickname" placeholder="Spitzname auf diesem Server (leer = Standardname)" />
+      <button data-save="nickname">Speichern</button>
+      <span class="save-status" id="status-nickname"></span>
+    </section>
+
+    <!-- Kanäle -->
+    <section class="card">
+      <div class="eyebrow">Kanäle</div>
+      <h2>Warteraum &amp; Anfrage-Kanal</h2>
+      <div class="row">
+        <div>
+          <label>Warteraum (Voice)</label>
+          <select id="waitingRoomChannelId"></select>
+        </div>
+        <div>
+          <label>Anfrage-Kanal (Text)</label>
+          <select id="requestChannelId"></select>
+        </div>
+      </div>
+      <button data-save="channels">Speichern</button>
+      <span class="save-status" id="status-channels"></span>
+    </section>
+
+    <!-- Büros -->
+    <section class="card">
+      <div class="eyebrow">Büros</div>
+      <h2>Konfigurierte Büros</h2>
+      <div id="office-list"></div>
+      <div class="row">
+        <input type="text" id="new-office-name" placeholder="Name, z. B. Henris Büro" />
+        <select id="new-office-channel"></select>
+      </div>
+      <button id="add-office">Büro hinzufügen</button>
+    </section>
+
+    <!-- Nachrichten -->
+    <section class="card">
+      <div class="eyebrow">Nachrichten</div>
+      <h2>Texte</h2>
+      <label>DM-Text bei Beitritt (Platzhalter: {user}, {server})</label>
+      <textarea id="dmMessage"></textarea>
+      <label>Text außerhalb der Öffnungszeiten</label>
+      <textarea id="closedMessage"></textarea>
+      <button data-save="messages">Speichern</button>
+      <span class="save-status" id="status-messages"></span>
+    </section>
+
+    <!-- Musik -->
+    <section class="card">
+      <div class="eyebrow">Musik</div>
+      <h2>Wartemusik</h2>
+      <div class="radio-group">
+        <label><input type="radio" name="musicMode" value="file-url" /> Eigener Datei-Link</label>
+        <label><input type="radio" name="musicMode" value="youtube" /> YouTube</label>
+        <label><input type="radio" name="musicMode" value="spotify" /> Spotify</label>
+      </div>
+      <input type="text" id="musicSource" placeholder="Link einfügen" />
+      <div class="hint">Spotify-Links werden anhand von Titel/Interpret automatisch auf YouTube gesucht und von dort abgespielt.</div>
+      <label>Lautstärke</label>
+      <div class="volume-row">
+        <input type="range" id="volume" min="0" max="100" />
+        <span class="value" id="volume-value">100%</span>
+      </div>
+      <button data-save="music">Speichern</button>
+      <span class="save-status" id="status-music"></span>
+    </section>
+
+    <!-- Öffnungszeiten -->
+    <section class="card">
+      <div class="eyebrow">Öffnungszeiten</div>
+      <h2>Support-Zeiten</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="hoursEnabled" />
+        <label for="hoursEnabled">Öffnungszeiten aktiv (sonst rund um die Uhr geöffnet)</label>
+      </div>
+      <div class="row">
+        <div>
+          <label>Start</label>
+          <input type="time" id="hoursStart" />
+        </div>
+        <div>
+          <label>Ende</label>
+          <input type="time" id="hoursEnd" />
+        </div>
+        <div>
+          <label>Zeitzone</label>
+          <input type="text" id="hoursTimezone" placeholder="Europe/Berlin" />
+        </div>
+      </div>
+      <button data-save="hours">Speichern</button>
+      <span class="save-status" id="status-hours"></span>
+    </section>
+    <!-- Statistik & Verlauf -->
+    <section class="card">
+      <div class="eyebrow">Live</div>
+      <h2>Statistik &amp; Verlauf</h2>
+      <div class="stat-tiles" id="stat-tiles"></div>
+      <label style="margin-top:10px; display:block;">Offene Fälle gerade</label>
+      <div id="open-cases-list"></div>
+      <label style="margin-top:16px; display:block;">Verlauf (letzte Fälle)</label>
+      <div id="case-history-list"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
