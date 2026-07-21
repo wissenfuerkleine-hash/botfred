@@ -20,6 +20,61 @@ const DEFAULTS = {
     roleId: null,
     categoryId: null,
   },
+  // Verifizierungssystem: Panel mit Button, optional Captcha, Rolle geben/entfernen
+  verification: {
+    title: 'Verifizierung',
+    message: 'Klicke unten auf den Button, um dich zu verifizieren.',
+    captchaEnabled: false,
+    grantRoleId: null,
+    removeRoleId: null,
+    bannerUrl: null,
+    logoUrl: null,
+  },
+  // Eigenständiges Support-Modul: eigener Warteraum, eigener Ping-Kanal,
+  // eigene Musik (nur eigener Datei-Link, kein YouTube/Spotify), eigene Rolle.
+  support: {
+    enabled: false,
+    waitingRoomChannelId: null,
+    pingChannelId: null,
+    message: '🆘 Neuer Supportfall',
+    categoryId: null,
+    roleId: null,
+    musicSource: null,
+    volume: 100,
+  },
+  // Ticketsystem: Panel mit Kategorien, pro Kategorie eigene Rolle/Kategorie-Channel,
+  // Schließen-Rechte, Feedback (1-5 Sterne + Grund) ins Log.
+  tickets: {
+    panelTitle: 'Support-Tickets',
+    panelMessage: 'Wähle unten eine Kategorie, um ein Ticket zu eröffnen.',
+    bannerUrl: null,
+    logoUrl: null,
+    openMessage: 'Danke für dein Ticket! Ein Teammitglied meldet sich gleich bei dir.',
+    closedTitle: 'Ticket geschlossen',
+    closedMessage: 'Dein Ticket wurde auf dem Server geschlossen.',
+    feedbackChannelId: null,
+    categories: [], // { id, name, roleId, categoryId, staffOnlyClose }
+  },
+  // Backup-System: automatische Backups + Einstellungen dazu
+  backup: {
+    autoEnabled: false,
+    intervalHours: 24,
+    lastBackupAt: null,
+  },
+  // RP-System: Start/Stop-Ankündigungen + Status-Panel
+  rp: {
+    active: false,
+    startTitle: 'RP gestartet',
+    startMessage: 'Das Roleplay hat begonnen!',
+    startRoleId: null,
+    startChannelId: null,
+    stopTitle: 'RP beendet',
+    stopMessage: 'Das Roleplay wurde beendet.',
+    stopRoleId: null,
+    stopChannelId: null,
+    statusChannelId: null,
+    statusMessageId: null,
+  },
   // Musik
   musicMode: 'local', // 'local' | 'file-url' | 'youtube' | 'spotify'
   musicSource: null, // URL / Spotify-Link, je nach musicMode
@@ -54,6 +109,15 @@ function withDefaults(cfg) {
     ...cfg,
     openingHours: { ...DEFAULTS.openingHours, ...(cfg?.openingHours || {}) },
     generalOffice: { ...DEFAULTS.generalOffice, ...(cfg?.generalOffice || {}) },
+    verification: { ...DEFAULTS.verification, ...(cfg?.verification || {}) },
+    support: { ...DEFAULTS.support, ...(cfg?.support || {}) },
+    tickets: {
+      ...DEFAULTS.tickets,
+      ...(cfg?.tickets || {}),
+      categories: cfg?.tickets?.categories ?? DEFAULTS.tickets.categories,
+    },
+    backup: { ...DEFAULTS.backup, ...(cfg?.backup || {}) },
+    rp: { ...DEFAULTS.rp, ...(cfg?.rp || {}) },
   };
 }
 
@@ -120,6 +184,72 @@ function setGeneralOffice(guildId, { enabled, emoji, roleId, categoryId }) {
   return updateGuild(guildId, { generalOffice: merged });
 }
 
+function setVerification(guildId, patch) {
+  const current = getGuild(guildId).verification;
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return updateGuild(guildId, { verification: merged });
+}
+
+function setSupport(guildId, patch) {
+  const current = getGuild(guildId).support;
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return updateGuild(guildId, { support: merged });
+}
+
+function setRp(guildId, patch) {
+  const current = getGuild(guildId).rp;
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return updateGuild(guildId, { rp: merged });
+}
+
+function setBackupSettings(guildId, patch) {
+  const current = getGuild(guildId).backup;
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return updateGuild(guildId, { backup: merged });
+}
+
+// --- Ticketsystem ---
+function setTicketSettings(guildId, patch) {
+  const current = getGuild(guildId).tickets;
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (key !== 'categories' && value !== undefined) merged[key] = value;
+  }
+  return updateGuild(guildId, { tickets: merged });
+}
+
+function addTicketCategory(guildId, { name, roleId, categoryId, staffOnlyClose }) {
+  const tickets = getGuild(guildId).tickets;
+  const id = `tc_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+  const categories = [...tickets.categories, { id, name, roleId: roleId || null, categoryId, staffOnlyClose: staffOnlyClose !== false }];
+  updateGuild(guildId, { tickets: { ...tickets, categories } });
+  return id;
+}
+
+function removeTicketCategory(guildId, id) {
+  const tickets = getGuild(guildId).tickets;
+  const before = tickets.categories.length;
+  const categories = tickets.categories.filter((c) => c.id !== id);
+  updateGuild(guildId, { tickets: { ...tickets, categories } });
+  return categories.length < before;
+}
+
+function getTicketCategory(guildId, id) {
+  return getGuild(guildId).tickets.categories.find((c) => c.id === id);
+}
+
 function setLocked(guildId, locked) {
   return updateGuild(guildId, { locked });
 }
@@ -168,6 +298,14 @@ module.exports = {
   setVolume,
   setOpeningHours,
   setGeneralOffice,
+  setVerification,
+  setSupport,
+  setBackupSettings,
+  setRp,
+  setTicketSettings,
+  addTicketCategory,
+  removeTicketCategory,
+  getTicketCategory,
   setLocked,
   addOffice,
   removeOffice,

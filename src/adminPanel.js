@@ -182,6 +182,14 @@ async function buildGuildDetailPayload(client, guildId) {
       .setLabel(guildConfig.locked ? 'Entsperren' : 'Sperren')
       .setStyle(guildConfig.locked ? ButtonStyle.Success : ButtonStyle.Danger),
     new ButtonBuilder()
+      .setCustomId(`admin-nickname-btn:${guildId}`)
+      .setLabel('✏️ Spitzname (nur dieser Server)')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('admin-profile-btn')
+      .setLabel('🌐 Bot-Profil (gilt überall)')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId('admin-back:0')
       .setLabel('◀ Zur Serverliste')
       .setStyle(ButtonStyle.Secondary),
@@ -208,6 +216,122 @@ async function handleAdminLockToggle(interaction) {
   const guildConfig = guildStore.getGuild(guildId);
   guildStore.setLocked(guildId, !guildConfig.locked);
   await interaction.update(await buildGuildDetailPayload(interaction.client, guildId));
+}
+
+// --- Spitzname pro Server ---
+async function handleAdminNicknameButton(interaction) {
+  if (!requireAccess(interaction)) {
+    await interaction.reply({ content: 'Nicht angemeldet. Bitte erneut /admin-panel ausführen.', ephemeral: true });
+    return;
+  }
+  const [, guildId] = interaction.customId.split(':');
+  const guild = interaction.client.guilds.cache.get(guildId);
+  if (!guild) {
+    await interaction.reply({ content: 'Server nicht gefunden.', ephemeral: true });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`admin-nickname-modal:${guildId}`)
+    .setTitle(`Spitzname – ${guild.name}`.slice(0, 45));
+
+  const input = new TextInputBuilder()
+    .setCustomId('nickname')
+    .setLabel('Neuer Spitzname (leer = zurücksetzen)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setValue(guild.members.me?.nickname || '');
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  await interaction.showModal(modal);
+}
+
+async function handleAdminNicknameModalSubmit(interaction) {
+  if (!requireAccess(interaction)) {
+    await interaction.reply({ content: 'Nicht angemeldet. Bitte erneut /admin-panel ausführen.', ephemeral: true });
+    return;
+  }
+  const [, guildId] = interaction.customId.split(':');
+  const guild = interaction.client.guilds.cache.get(guildId);
+  if (!guild) {
+    await interaction.reply({ content: 'Server nicht gefunden.', ephemeral: true });
+    return;
+  }
+  const nickname = interaction.fields.getTextInputValue('nickname').trim();
+  try {
+    await guild.members.me.setNickname(nickname || null);
+  } catch (err) {
+    await interaction.reply({ content: `Konnte Spitznamen nicht ändern: ${err.message}`, ephemeral: true });
+    return;
+  }
+  await interaction.reply(await buildGuildDetailPayload(interaction.client, guildId));
+}
+
+// --- Globales Bot-Profil (Name/Avatar/Banner) – gilt auf ALLEN Servern gleich ---
+async function handleAdminProfileButton(interaction) {
+  if (!requireAccess(interaction)) {
+    await interaction.reply({ content: 'Nicht angemeldet. Bitte erneut /admin-panel ausführen.', ephemeral: true });
+    return;
+  }
+  const client = interaction.client;
+  const modal = new ModalBuilder()
+    .setCustomId('admin-profile-modal')
+    .setTitle('Bot-Profil (global)');
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId('username')
+    .setLabel('Bot-Name (leer lassen = nicht ändern)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setValue(client.user.username);
+
+  const avatarInput = new TextInputBuilder()
+    .setCustomId('avatar_url')
+    .setLabel('Avatar-URL (leer lassen = nicht ändern)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false);
+
+  const bannerInput = new TextInputBuilder()
+    .setCustomId('banner_url')
+    .setLabel('Banner-URL (leer lassen = nicht ändern)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(nameInput),
+    new ActionRowBuilder().addComponents(avatarInput),
+    new ActionRowBuilder().addComponents(bannerInput),
+  );
+  await interaction.showModal(modal);
+}
+
+async function handleAdminProfileModalSubmit(interaction) {
+  if (!requireAccess(interaction)) {
+    await interaction.reply({ content: 'Nicht angemeldet. Bitte erneut /admin-panel ausführen.', ephemeral: true });
+    return;
+  }
+  const username = interaction.fields.getTextInputValue('username').trim();
+  const avatarUrl = interaction.fields.getTextInputValue('avatar_url').trim();
+  const bannerUrl = interaction.fields.getTextInputValue('banner_url').trim();
+
+  const client = interaction.client;
+  const errors = [];
+  try {
+    if (username && username !== client.user.username) await client.user.setUsername(username);
+  } catch (err) { errors.push(`Name: ${err.message}`); }
+  try {
+    if (avatarUrl) await client.user.setAvatar(avatarUrl);
+  } catch (err) { errors.push(`Avatar: ${err.message}`); }
+  try {
+    if (bannerUrl) await client.user.setBanner(bannerUrl);
+  } catch (err) { errors.push(`Banner: ${err.message}`); }
+
+  await interaction.reply({
+    content: errors.length
+      ? `Teilweise fehlgeschlagen (Discord limitiert Änderungen pro Zeitraum):\n${errors.join('\n')}`
+      : 'Bot-Profil aktualisiert (gilt jetzt auf allen Servern).',
+    ephemeral: true,
+  });
 }
 
 // --- Besitzer verwalten ---
@@ -310,6 +434,10 @@ module.exports = {
   handleAdminBack,
   handleAdminServerSelect,
   handleAdminLockToggle,
+  handleAdminNicknameButton,
+  handleAdminNicknameModalSubmit,
+  handleAdminProfileButton,
+  handleAdminProfileModalSubmit,
   handleAdminOwnersView,
   handleAdminOwnerAddButton,
   handleAdminOwnerAddModalSubmit,

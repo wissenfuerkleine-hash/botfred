@@ -171,6 +171,190 @@ Im Panel gibt es unten den Button "👤 Besitzer verwalten":
   "fest in .env" markiert und lassen sich nur dort entfernen (Schutz, damit
   man sich nicht selbst aussperrt).
 
+## RP-System
+
+Start-/Stop-Ankündigungen fürs Roleplay, plus ein dauerhaftes Status-Panel
+mit Mitgliederzahl.
+
+### Einrichtung
+
+```
+/rp-start-setup titel:"RP gestartet" nachricht:"Das Roleplay hat begonnen!" rolle:@RPler channel:#ankuendigungen
+/rp-stop-setup titel:"RP beendet" nachricht:"Das Roleplay wurde beendet." rolle:@RPler channel:#ankuendigungen
+/rp-status-setup channel:#rp-status
+```
+
+Alle Parameter bei den `-setup`-Befehlen sind einzeln optional (nur was du
+angibst, wird geändert); für Rolle/Channel gibt's auch `_id`-Varianten.
+
+### Nutzung
+
+- `/rp-start` – sendet die konfigurierte Start-Ankündigung (mit Rollen-Ping)
+  und aktualisiert das Status-Panel auf 🟢 gestartet.
+- `/rp-stop` – sendet die Stop-Ankündigung, Status-Panel wird 🔴 gestoppt.
+- `/rp-status` – für **jeden** nutzbar, zeigt eine **nur für dich sichtbare**
+  (ephemere) Kurzübersicht: aktueller RP-Status + aktuelle Mitgliederzahl.
+- Das Panel aus `/rp-status-setup` bleibt dauerhaft im Kanal stehen und wird
+  bei jedem `/rp-start`/`/rp-stop` automatisch aktualisiert (bearbeitet die
+  bestehende Nachricht, statt eine neue zu senden).
+
+## Backup-System
+
+**⚠️ Mächtige, potenziell zerstörerische Funktion** – lies dir das genau durch,
+bevor du `/backup-wiederherstellen` benutzt.
+
+```
+/backup-erstellen
+```
+Erstellt ein Backup von Rollen, Kategorien und Channels (inkl. Berechtigungen)
+dieses Servers und gibt dir einen **Code** (z. B. `A1B2-C3D4-E5F6`), den nur
+du siehst. Diesen Code gut aufbewahren – er wird nirgendwo sonst angezeigt.
+
+```
+/backup-wiederherstellen code:A1B2-C3D4-E5F6
+```
+Zeigt zuerst eine **Sicherheitsabfrage** ("Ja, alles ersetzen" / "Abbrechen").
+Erst nach Bestätigung passiert etwas. Bei Bestätigung wird:
+1. Aktuell **alle** Channels/Kategorien gelöscht
+2. Aktuell **alle** Rollen gelöscht (außer `@everyone` und bot-verwaltete Rollen)
+3. Rollen, Kategorien und Channels aus dem Backup neu angelegt (inkl. Berechtigungen,
+   soweit die referenzierten Rollen/Nutzer noch existieren bzw. neu angelegt wurden)
+
+Das kann bei größeren Servern **mehrere Minuten** dauern (Discord limitiert,
+wie schnell Channels/Rollen angelegt werden können) – der Bot gibt
+Zwischenstatus-Updates in der ursprünglichen Nachricht aus.
+
+**Hinweis:** Ein Backup-Code lässt sich grundsätzlich auf jedem Server
+einsetzen, auf dem der Bot ist (nicht nur dem Ursprungsserver) – praktisch,
+falls du eine Serverstruktur als Vorlage auf einen anderen Server übertragen
+willst, aber genau deshalb ist die Sicherheitsabfrage wichtig.
+
+### Automatische Backups
+
+```
+/backup-setup aktiv:true intervall_stunden:24
+```
+Erstellt automatisch alle X Stunden ein neues Backup im Hintergrund (der Bot
+prüft alle 30 Minuten, ob eins fällig ist). Mit `aktiv:false` wieder
+ausschalten.
+
+## Ticketsystem
+
+Ein drittes, eigenständiges Modul: klassisches Ticket-Panel mit mehreren
+Kategorien, pro Kategorie eigene Kategorie (für die Ticket-Channels), eigene
+zuständige Rolle, eigene Schließen-Rechte. Plus 1-5-Sterne-Feedback mit Grund
+nach dem Schließen.
+
+### Einrichtung
+
+```
+/setup-ticket-panel titel:"Support-Tickets" nachricht:"Wähle unten eine Kategorie." banner_url:"https://.../banner.png" logo_url:"https://.../logo.png" ticket_text:"Danke für dein Ticket, wir melden uns gleich." geschlossen_titel:"Ticket geschlossen" geschlossen_text:"Dein Ticket wurde geschlossen." feedback_kanal:#ticket-feedback
+
+/ticket-kategorie add name:"Allgemeiner Support" kategorie:#Tickets-Allgemein rolle:@Support nur_team_schliesst:true
+/ticket-kategorie add name:"Bug melden" kategorie:#Tickets-Bugs rolle:@Entwickler
+
+/ticketpanel-senden channel:#ticket-eroeffnen
+```
+
+Weitere Befehle: `/ticket-kategorie liste` (zeigt alle Kategorien mit ID),
+`/ticket-kategorie remove id:...` (entfernen). Für Kategorie/Rolle gibt's
+auch `_id`-Varianten falls die normale Auswahl mal nicht reicht.
+
+### Ablauf
+
+1. Nutzer sieht das Panel (Titel, Text, Banner, Logo) mit einem Dropdown zur
+   Kategorie-Auswahl.
+2. Nach Auswahl wird automatisch ein **privater Ticket-Channel** in der
+   konfigurierten Kategorie erstellt (nur Ersteller + zuständige Rolle + Bot
+   sehen ihn), mit deinem `ticket_text` als Willkommensnachricht und einem
+   "🔒 Ticket schließen"-Button.
+3. Schließen darf: standardmäßig **nur das Team** (zuständige Rolle oder
+   wer "Kanäle verwalten" hat). Mit `nur_team_schliesst:false` darf auch der
+   Ticket-Ersteller selbst schließen.
+4. Beim Schließen: Nachricht mit deinem `geschlossen_titel`/`geschlossen_text`
+   im Channel, der Ersteller bekommt per DM eine 1-5-Sterne-Bewertung
+   angezeigt. Nach Sternewahl fragt ein Pop-up nach einer kurzen Begründung
+   (Pflichtfeld) – das Ergebnis landet als Embed im `feedback_kanal`.
+5. Der Ticket-Channel wird ca. 8 Sekunden nach dem Schließen automatisch
+   gelöscht.
+
+**Berechtigungen:** Der Bot braucht "Kanäle verwalten" (Manage Channels),
+damit er Ticket-Channels mit den richtigen Sichtbarkeits-Rechten anlegen kann.
+
+## Support-Modul (eigenständig, getrennt vom Büro-System)
+
+Ein komplett unabhängiges zweites Warteraum-System, parallel zum
+Büro-System nutzbar – eigener Warteraum, eigener Ping-Kanal, eigene Rolle,
+eigene Musik (**nur eigener Datei-Link, bewusst kein YouTube/Spotify**).
+
+### Einrichtung
+
+```
+/setup-support aktiv:true warteraum:#support-warteraum ping_kanal:#support-anfragen nachricht:"🆘 Neuer Supportfall" kategorie:#Support-Büros rolle:@Support musik_datei_url:"https://.../musik.mp3" lautstaerke:70
+```
+
+Alle Parameter außer `aktiv` sind einzeln optional und überschreiben nur das,
+was du angibst – der Rest bleibt wie vorher. Für Warteraum/Ping-Kanal/Kategorie/
+Rolle gibt's jeweils auch eine `_id`-Variante für den Fall, dass etwas nicht
+in der normalen Auswahl auftaucht (`warteraum_id`, `ping_kanal_id`,
+`kategorie_id`, `rolle_id`).
+
+### Ablauf
+
+1. Nutzer joint den Support-Warteraum → Bot joint (falls gerade keinen
+   anderen Voice-Channel im Server belegt) und spielt die eigene Wartemusik.
+2. Im Ping-Kanal erscheint sofort eine Nachricht (Titel = deine `nachricht`,
+   pingt die konfigurierte Rolle) mit einem **"Übernehmen"**-Button.
+3. Support-Mitarbeiter klickt "Übernehmen" – muss dafür selbst gerade in
+   einem Voice-Channel der konfigurierten Kategorie sitzen (sonst
+   Fehlermeldung). Nutzer wird dorthin gemovt.
+4. "Fall schließen" beendet den Fall: Nutzer wird getrennt, verliert Sicht
+   auf den Channel, Nachricht zeigt wer bearbeitet hat und wie lange es
+   gedauert hat.
+5. Verlässt der Nutzer den Warteraum wieder, verlässt der Bot ihn ebenfalls
+   (sofern er dort auch wirklich verbunden war).
+
+**Hinweis:** Der Bot kann pro Server nur in einem Voice-Channel gleichzeitig
+sein. Sind Büro- und Support-Warteraum gleichzeitig belegt, bekommt nur
+einer von beiden Musik ab – Benachrichtigungen und das Movement bei Annahme
+funktionieren aber in beiden Systemen unabhängig voneinander weiter.
+
+## Verifizierungssystem
+
+Unabhängig vom Büro-Support-System gibt es ein Verifizierungssystem mit
+Panel, optionalem Captcha und automatischer Rollenvergabe.
+
+### Einrichtung
+
+```
+/setup-verifizierung titel:"Willkommen!" nachricht:"Klick unten, um Zugriff auf den Server zu bekommen." captcha:true rolle_geben:@Mitglied rolle_entfernen:@Unverifiziert banner_url:"https://.../banner.png" logo_url:"https://.../logo.png"
+/verifizierungspanel-senden channel:#verifizierung
+```
+
+Alle Parameter bei `/setup-verifizierung` sind einzeln optional – du kannst
+z. B. nur `captcha:true` ändern, ohne Titel/Text neu einzugeben; nicht
+angegebene Werte bleiben wie vorher. Für Rollen gibt's jeweils auch eine
+`_id`-Variante (`rolle_geben_id`, `rolle_entfernen_id`) für den Fall, dass die
+Rolle nicht in der normalen Auswahl auftaucht.
+
+### Ablauf für den Nutzer
+
+1. Nutzer sieht das Panel (Titel, Text, optional Banner-Bild + Logo) mit
+   einem "✅ Verifizieren"-Button.
+2. Klick auf den Button:
+   - **Ohne Captcha**: sofort verifiziert.
+   - **Mit Captcha**: ein Pop-up-Fenster zeigt einen zufälligen Code
+     (z. B. "Gib diesen Code ein: K7XPA"), der Nutzer tippt ihn ab und
+     bestätigt. Falscher/abgelaufener Code (5 Minuten gültig) → einfach
+     nochmal auf "Verifizieren" klicken für einen neuen Code.
+3. Bei Erfolg: die konfigurierte Rolle wird vergeben, die andere (z. B.
+   "Unverifiziert") wird entfernt.
+
+**Wichtig:** Die Bot-Rolle muss in der Rollen-Reihenfolge **über** beiden
+konfigurierten Rollen stehen und der Bot braucht die Berechtigung "Rollen
+verwalten" (Manage Roles) – sonst schlägt das Vergeben/Entfernen fehl (der
+Nutzer bekommt dann eine Fehlermeldung mit Erklärung angezeigt).
+
 ## Öffentlicher Bot – für beliebig viele Server
 
 Der Bot ist bewusst **nicht** auf einen einzelnen Server fest verdrahtet:

@@ -14,6 +14,12 @@ const { startWebServer } = require('./web/server');
 const { formatMessage } = require('./textUtils');
 const { buildOfficeSelectPayload } = require('./officeSelectUI');
 const adminPanel = require('./adminPanel');
+const verification = require('./verification');
+const support = require('./support');
+const { resolveSupportAudioResource } = require('./musicSource');
+const ticketing = require('./ticketing');
+const backup = require('./backup');
+const backupStore = require('./backupStore');
 
 const client = new Client({
   intents: [
@@ -36,19 +42,46 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   const guildId = newState.guild.id;
   const guildConfig = guildStore.getGuild(guildId);
   if (guildConfig.locked) return; // Server wurde vom Bot-Besitzer gesperrt
-  if (!guildConfig.waitingRoomChannelId) return; // Server hat noch keinen Warteraum konfiguriert
 
-  const joinedWaitingRoom = newState.channelId === guildConfig.waitingRoomChannelId && oldState.channelId !== newState.channelId;
-  const leftWaitingRoom = oldState.channelId === guildConfig.waitingRoomChannelId && newState.channelId !== oldState.channelId;
+  // --- Büro-Warteraum ---
+  if (guildConfig.waitingRoomChannelId) {
+    const joinedWaitingRoom = newState.channelId === guildConfig.waitingRoomChannelId && oldState.channelId !== newState.channelId;
+    const leftWaitingRoom = oldState.channelId === guildConfig.waitingRoomChannelId && newState.channelId !== oldState.channelId;
 
-  if (joinedWaitingRoom && !newState.member.user.bot) {
-    await onUserJoinedWaitingRoom(newState);
+    if (joinedWaitingRoom && !newState.member.user.bot) {
+      await onUserJoinedWaitingRoom(newState);
+    }
+    if (leftWaitingRoom || joinedWaitingRoom) {
+      await maybeLeaveEmptyWaitingRoom(newState.guild, guildConfig.waitingRoomChannelId);
+    }
   }
 
-  if (leftWaitingRoom || joinedWaitingRoom) {
-    await maybeLeaveEmptyWaitingRoom(newState.guild, guildConfig.waitingRoomChannelId);
+  // --- Eigenständiger Support-Warteraum ---
+  if (guildConfig.support.enabled && guildConfig.support.waitingRoomChannelId) {
+    const joinedSupportRoom = newState.channelId === guildConfig.support.waitingRoomChannelId && oldState.channelId !== newState.channelId;
+    const leftSupportRoom = oldState.channelId === guildConfig.support.waitingRoomChannelId && newState.channelId !== oldState.channelId;
+
+    if (joinedSupportRoom && !newState.member.user.bot) {
+      await onUserJoinedSupportRoom(newState);
+    }
+    if (leftSupportRoom || joinedSupportRoom) {
+      await maybeLeaveEmptyWaitingRoom(newState.guild, guildConfig.support.waitingRoomChannelId);
+    }
   }
 });
+
+async function onUserJoinedSupportRoom(voiceState) {
+  const guild = voiceState.guild;
+  const waitingRoomChannel = voiceState.channel;
+
+  // Bot joint den Support-Warteraum und spielt (nur eigene) Wartemusik, falls
+  // er nicht schon anderweitig im Server in einem Voice-Channel ist.
+  if (!voiceMusic.isBotConnected(guild.id)) {
+    await voiceMusic.joinWaitingRoom(waitingRoomChannel, resolveSupportAudioResource);
+  }
+
+  await support.notifySupportRequest(guild, voiceState.member);
+}
 
 async function onUserJoinedWaitingRoom(voiceState) {
   const guild = voiceState.guild;
@@ -83,6 +116,10 @@ async function onUserJoinedWaitingRoom(voiceState) {
 async function maybeLeaveEmptyWaitingRoom(guild, waitingRoomChannelId) {
   const channel = guild.channels.cache.get(waitingRoomChannelId);
   if (!channel) return;
+  // Nur verlassen, wenn der Bot wirklich in GENAU diesem Warteraum sitzt -
+  // sonst würde das leere Werden eines ungenutzten Warteraums den Bot
+  // versehentlich aus dem jeweils anderen (aktiven) Warteraum werfen.
+  if (!voiceMusic.isBotInChannel(guild.id, waitingRoomChannelId)) return;
   const nonBotMembers = channel.members.filter((m) => !m.user.bot);
   if (nonBotMembers.size === 0) {
     voiceMusic.leaveWaitingRoom(guild.id);
@@ -115,8 +152,28 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('verify-captcha:')) {
+      await verification.handleCaptchaModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket-feedback-modal:')) {
+      await ticketing.handleFeedbackModalSubmit(interaction);
+      return;
+    }
+
     if (interaction.isModalSubmit() && interaction.customId === 'admin-owner-add-modal') {
       await adminPanel.handleAdminOwnerAddModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('admin-nickname-modal:')) {
+      await adminPanel.handleAdminNicknameModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'admin-profile-modal') {
+      await adminPanel.handleAdminProfileModalSubmit(interaction);
       return;
     }
 
@@ -130,8 +187,29 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('ticket-select:')) {
+      await ticketing.handleTicketSelect(interaction);
+      return;
+    }
+
     if (interaction.isButton()) {
-      if (interaction.customId.startsWith('office-page:')) {
+      if (interaction.customId.startsWith('verify:')) {
+        await verification.handleVerifyButtonClick(interaction);
+      } else if (interaction.customId.startsWith('support-claim:')) {
+        await support.handleClaimButtonClick(interaction);
+      } else if (interaction.customId.startsWith('support-close:')) {
+        await support.handleSupportCloseButtonClick(interaction);
+      } else if (interaction.customId.startsWith('ticket-close:')) {
+        await ticketing.handleTicketClose(interaction);
+      } else if (interaction.customId.startsWith('ticket-page:')) {
+        await ticketing.handleTicketPage(interaction);
+      } else if (interaction.customId.startsWith('ticket-star:')) {
+        await ticketing.handleFeedbackStarClick(interaction);
+      } else if (interaction.customId.startsWith('backup-confirm:')) {
+        await handleBackupConfirm(interaction);
+      } else if (interaction.customId === 'backup-cancel') {
+        await interaction.update({ content: 'Wiederherstellung abgebrochen. Es wurde nichts verändert.', embeds: [], components: [] });
+      } else if (interaction.customId.startsWith('office-page:')) {
         await interactions.handleOfficePage(interaction, client);
       } else if (interaction.customId.startsWith('accept:')) {
         await interactions.handleAccept(interaction, client);
@@ -145,6 +223,10 @@ client.on('interactionCreate', async (interaction) => {
         await adminPanel.handleAdminBack(interaction);
       } else if (interaction.customId.startsWith('admin-lock-toggle:')) {
         await adminPanel.handleAdminLockToggle(interaction);
+      } else if (interaction.customId.startsWith('admin-nickname-btn:')) {
+        await adminPanel.handleAdminNicknameButton(interaction);
+      } else if (interaction.customId === 'admin-profile-btn') {
+        await adminPanel.handleAdminProfileButton(interaction);
       } else if (interaction.customId === 'admin-owners:view') {
         await adminPanel.handleAdminOwnersView(interaction);
       } else if (interaction.customId === 'admin-owner-add-btn') {
@@ -160,5 +242,51 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+
+async function handleBackupConfirm(interaction) {
+  const [, code] = interaction.customId.split(':');
+  const backupRecord = backupStore.getBackup(code);
+  if (!backupRecord) {
+    await interaction.update({ content: 'Dieses Backup wurde nicht mehr gefunden.', embeds: [], components: [] });
+    return;
+  }
+
+  if (backup.restoringGuilds.has(interaction.guild.id)) {
+    await interaction.update({ content: 'Für diesen Server läuft bereits eine Wiederherstellung.', embeds: [], components: [] });
+    return;
+  }
+
+  backup.restoringGuilds.add(interaction.guild.id);
+  await interaction.update({ content: '⏳ Wiederherstellung läuft ... das kann je nach Servergröße einige Minuten dauern. Bitte warten.', embeds: [], components: [] });
+
+  try {
+    await backup.restoreBackup(interaction.guild, backupRecord, async (status) => {
+      await interaction.editReply({ content: `⏳ ${status}` }).catch(() => {});
+    });
+    await interaction.editReply({ content: '✅ Wiederherstellung abgeschlossen.' });
+  } catch (err) {
+    await interaction.editReply({ content: `❌ Fehler bei der Wiederherstellung: ${err.message}` }).catch(() => {});
+  } finally {
+    backup.restoringGuilds.delete(interaction.guild.id);
+  }
+}
+
+// Prüft alle 30 Minuten, ob für einen Server ein automatisches Backup fällig ist.
+setInterval(async () => {
+  for (const guild of client.guilds.cache.values()) {
+    const guildConfig = guildStore.getGuild(guild.id);
+    if (!guildConfig.backup.autoEnabled) continue;
+    const intervalMs = (guildConfig.backup.intervalHours || 24) * 60 * 60 * 1000;
+    const lastBackupAt = guildConfig.backup.lastBackupAt || 0;
+    if (Date.now() - lastBackupAt >= intervalMs) {
+      try {
+        await backup.createBackup(guild);
+        console.log(`[Backup] Automatisches Backup für Guild ${guild.id} (${guild.name}) erstellt.`);
+      } catch (err) {
+        console.error(`[Backup] Automatisches Backup für Guild ${guild.id} fehlgeschlagen:`, err.message);
+      }
+    }
+  }
+}, 30 * 60 * 1000);
 
 client.login(config.token);

@@ -71,4 +71,13 @@ async function resolveAudioResource(guildConfig) {
   return resourceFromFfmpegInput(config.musicFile, volume);
 }
 
-module.exports = { resolveAudioResource };
+// Für das Support-Modul: bewusst NUR eigene Datei-Links, kein YouTube/Spotify.
+async function resolveSupportAudioResource(guildConfig) {
+  const { musicSource, volume } = guildConfig.support;
+  if (musicSource) {
+    return resourceFromFfmpegInput(musicSource, volume);
+  }
+  return resourceFromFfmpegInput(config.musicFile, volume);
+}
+
+module.exports = { resolveAudioResource, resolveSupportAudioResource };
