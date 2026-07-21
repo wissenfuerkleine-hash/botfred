@@ -21,6 +21,49 @@ const ticketing = require('./ticketing');
 const backup = require('./backup');
 const backupStore = require('./backupStore');
 
+// --- Startup-Checks: bricht mit einer klaren, verständlichen Meldung ab,
+// statt mit einem kryptischen Stacktrace weiter unten zu crashen. ---
+function checkStartupConfigOrExit() {
+  const problems = [];
+
+  if (!config.token) {
+    problems.push('DISCORD_TOKEN fehlt in der .env-Datei.');
+  }
+  if (!config.clientId) {
+    problems.push('CLIENT_ID fehlt in der .env-Datei.');
+  }
+
+  const fs = require('fs');
+  if (!fs.existsSync(require('path').resolve(__dirname, '..', '.env'))) {
+    problems.push(
+      'Es wurde keine .env-Datei gefunden. Kopiere .env.example zu .env ' +
+      '("cp .env.example .env") und trage dort deinen Token und deine Client-ID ein.'
+    );
+  }
+
+  if (problems.length > 0) {
+    console.error('\n❌ Bot kann nicht starten – folgende Probleme wurden gefunden:\n');
+    problems.forEach((p) => console.error(`   - ${p}`));
+    console.error(
+      '\nBitte beheben und "npm start" erneut ausführen. ' +
+      'Mit "npm run diagnose" kannst du außerdem prüfen, ob Token/Client-ID gültig sind ' +
+      'und ob die Slash-Commands bereits bei Discord registriert wurden ("npm run deploy-commands").\n'
+    );
+    process.exit(1);
+  }
+}
+
+checkStartupConfigOrExit();
+
+// Verhindert, dass unerwartete Fehler den Prozess ohne jede Meldung beenden
+// (z. B. bei pm2 sonst nur ein stiller Neustart-Loop ohne erkennbare Ursache).
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unerwarteter Fehler (unhandledRejection):', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('❌ Unerwarteter Fehler (uncaughtException):', err);
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -289,4 +332,14 @@ setInterval(async () => {
   }
 }, 30 * 60 * 1000);
 
-client.login(config.token);
+client.login(config.token).catch((err) => {
+  console.error('\n❌ Login bei Discord fehlgeschlagen:', err.message);
+  if (err.message?.includes('TOKEN_INVALID') || err.message?.toLowerCase().includes('token')) {
+    console.error(
+      '   -> Der DISCORD_TOKEN in deiner .env ist vermutlich falsch oder abgelaufen.\n' +
+      '   -> Im Discord Developer Portal unter "Bot" ein neues Token erzeugen ("Reset Token") und in .env eintragen.'
+    );
+  }
+  console.error('   -> Danach "npm run diagnose" ausführen, um Token und Command-Registrierung zu prüfen.\n');
+  process.exit(1);
+});
