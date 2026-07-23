@@ -4,7 +4,8 @@ providers = ["node"]
 nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake", "pkg-config"]
  
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install --legacy-peer-deps"]
  
 [start]
 cmd = "npm start"
+ 
