@@ -20,7 +20,7 @@ module.exports = {
   clientSecret: process.env.CLIENT_SECRET,
   publicUrl: (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, ''),
   musicFile: path.resolve(process.cwd(), process.env.MUSIC_FILE || './assets/wait-music.mp3'),
-  dashboardPort: parseInt(process.env.DASHBOARD_PORT || '3000', 10),
+  dashboardPort: parseInt(process.env.PORT || process.env.DASHBOARD_PORT || '3000', 10),
   sessionSecret: process.env.SESSION_SECRET || 'bitte-in-.env-aendern',
   // Discord-User-IDs, die /admin-panel und den vollen Dashboard-Zugriff auf ALLE Server haben
   ownerIds: (process.env.OWNER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean),

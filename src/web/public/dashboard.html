@@ -38,9 +38,23 @@
           <input type="text" id="botBannerUrl" placeholder="https://.../banner.png" />
         </div>
       </div>
-      <div class="hint">Name/Avatar/Banner ändern ist bei Discord rate-limitiert (der Name z. B. nur wenige Male pro Stunde) – bei Fehler erscheint eine Meldung.</div>
+      <label>Bio (Beschreibung der Anwendung)</label>
+      <textarea id="botDescription" placeholder="Kurze Beschreibung des Bots"></textarea>
+      <div class="hint">Name/Avatar/Banner/Bio ändern ist bei Discord rate-limitiert (der Name z. B. nur wenige Male pro Stunde) – bei Fehler erscheint eine Meldung.</div>
       <button id="save-bot-profile">Übernehmen</button>
       <span class="save-status" id="status-bot-profile"></span>
+    </section>
+    <!-- Server sperren -->
+    <section class="card">
+      <div class="eyebrow">Nur dieser Server</div>
+      <h2>Server sperren</h2>
+      <div class="hint">Gesperrt: der Bot reagiert auf diesem Server auf nichts mehr (kein Warteraum, keine Befehle).</div>
+      <div class="toggle-row">
+        <input type="checkbox" id="guildLocked" />
+        <label for="guildLocked">Diesen Server sperren</label>
+      </div>
+      <button data-save="lock">Speichern</button>
+      <span class="save-status" id="status-lock"></span>
     </section>
     <!-- Server-Spitzname -->
     <section class="card">
@@ -148,6 +162,199 @@
       <div id="open-cases-list"></div>
       <label style="margin-top:16px; display:block;">Verlauf (letzte Fälle)</label>
       <div id="case-history-list"></div>
+    </section>
+
+    <!-- Verifizierung -->
+    <section class="card">
+      <div class="eyebrow">Modul</div>
+      <h2>Verifizierung</h2>
+      <div class="row">
+        <div>
+          <label>Titel</label>
+          <input type="text" id="verifyTitle" />
+        </div>
+        <div>
+          <label>Captcha</label>
+          <div class="toggle-row">
+            <input type="checkbox" id="verifyCaptcha" />
+            <label for="verifyCaptcha">Captcha-Code-Abfrage aktiv</label>
+          </div>
+        </div>
+      </div>
+      <label>Nachricht</label>
+      <textarea id="verifyMessage"></textarea>
+      <div class="row">
+        <div>
+          <label>Rolle vergeben</label>
+          <select id="verifyGrantRole"></select>
+        </div>
+        <div>
+          <label>Rolle entfernen</label>
+          <select id="verifyRemoveRole"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Banner-URL</label>
+          <input type="text" id="verifyBanner" />
+        </div>
+        <div>
+          <label>Logo-URL</label>
+          <input type="text" id="verifyLogo" />
+        </div>
+      </div>
+      <button data-save="verification">Speichern</button>
+      <span class="save-status" id="status-verification"></span>
+    </section>
+
+    <!-- Support-Modul -->
+    <section class="card">
+      <div class="eyebrow">Modul</div>
+      <h2>Eigenständiges Support-Modul</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="supportEnabled" />
+        <label for="supportEnabled">Support-Modul aktiv</label>
+      </div>
+      <div class="row">
+        <div>
+          <label>Support-Warteraum (Voice)</label>
+          <select id="supportWaitingRoom"></select>
+        </div>
+        <div>
+          <label>Ping-Kanal (Text)</label>
+          <select id="supportPingChannel"></select>
+        </div>
+      </div>
+      <label>Nachricht (Titel der Benachrichtigung)</label>
+      <input type="text" id="supportMessage" />
+      <div class="row">
+        <div>
+          <label>Kategorie (für Übernehmen-Check)</label>
+          <select id="supportCategory"></select>
+        </div>
+        <div>
+          <label>Rolle (wird gepingt)</label>
+          <select id="supportRole"></select>
+        </div>
+      </div>
+      <label>Eigene Musik-Datei-URL (kein YouTube/Spotify)</label>
+      <input type="text" id="supportMusic" />
+      <label>Lautstärke</label>
+      <div class="volume-row">
+        <input type="range" id="supportVolume" min="0" max="100" />
+        <span class="value" id="supportVolume-value">100%</span>
+      </div>
+      <button data-save="support">Speichern</button>
+      <span class="save-status" id="status-support"></span>
+    </section>
+
+    <!-- RP-System -->
+    <section class="card">
+      <div class="eyebrow">Modul</div>
+      <h2>RP-System</h2>
+      <div class="row">
+        <div>
+          <label>Start-Titel</label>
+          <input type="text" id="rpStartTitle" />
+        </div>
+        <div>
+          <label>Start-Kanal</label>
+          <select id="rpStartChannel"></select>
+        </div>
+      </div>
+      <label>Start-Nachricht</label>
+      <input type="text" id="rpStartMessage" />
+      <label>Start-Rolle (Ping)</label>
+      <select id="rpStartRole"></select>
+      <hr style="border-color: var(--panel-edge); margin: 14px 0;" />
+      <div class="row">
+        <div>
+          <label>Stop-Titel</label>
+          <input type="text" id="rpStopTitle" />
+        </div>
+        <div>
+          <label>Stop-Kanal</label>
+          <select id="rpStopChannel"></select>
+        </div>
+      </div>
+      <label>Stop-Nachricht</label>
+      <input type="text" id="rpStopMessage" />
+      <label>Stop-Rolle (Ping)</label>
+      <select id="rpStopRole"></select>
+      <hr style="border-color: var(--panel-edge); margin: 14px 0;" />
+      <label>Status-Panel-Kanal</label>
+      <select id="rpStatusChannel"></select>
+      <div class="hint">Aktueller Status: <span id="rpActiveLabel">–</span></div>
+      <button data-save="rp">Speichern</button>
+      <span class="save-status" id="status-rp"></span>
+    </section>
+
+    <!-- Ticketsystem -->
+    <section class="card">
+      <div class="eyebrow">Modul</div>
+      <h2>Ticketsystem</h2>
+      <div class="row">
+        <div>
+          <label>Panel-Titel</label>
+          <input type="text" id="ticketTitle" />
+        </div>
+        <div>
+          <label>Feedback-Kanal</label>
+          <select id="ticketFeedbackChannel"></select>
+        </div>
+      </div>
+      <label>Panel-Nachricht</label>
+      <textarea id="ticketMessage"></textarea>
+      <div class="row">
+        <div>
+          <label>Banner-URL</label>
+          <input type="text" id="ticketBanner" />
+        </div>
+        <div>
+          <label>Logo-URL</label>
+          <input type="text" id="ticketLogo" />
+        </div>
+      </div>
+      <label>Text im neuen Ticket-Channel</label>
+      <textarea id="ticketOpenMessage"></textarea>
+      <div class="row">
+        <div>
+          <label>Titel beim Schließen</label>
+          <input type="text" id="ticketClosedTitle" />
+        </div>
+        <div>
+          <label>Text beim Schließen</label>
+          <input type="text" id="ticketClosedMessage" />
+        </div>
+      </div>
+      <button data-save="tickets">Speichern</button>
+      <span class="save-status" id="status-tickets"></span>
+
+      <label style="margin-top:16px; display:block;">Kategorien</label>
+      <div id="ticket-category-list"></div>
+      <div class="row">
+        <input type="text" id="new-ticket-cat-name" placeholder="Name, z. B. Allgemeiner Support" />
+        <select id="new-ticket-cat-category"></select>
+        <select id="new-ticket-cat-role"></select>
+      </div>
+      <button id="add-ticket-category">Kategorie hinzufügen</button>
+    </section>
+
+    <!-- Backup -->
+    <section class="card">
+      <div class="eyebrow">Modul</div>
+      <h2>Backup</h2>
+      <div class="hint">Erstellt ein Backup von Rollen/Kategorien/Channels dieses Servers. Der Code wird nur einmal hier angezeigt – gut aufbewahren.</div>
+      <button id="create-backup">Jetzt Backup erstellen</button>
+      <div id="backup-code-result" class="hint mono" style="margin-top:8px;"></div>
+      <div class="toggle-row" style="margin-top:14px;">
+        <input type="checkbox" id="backupAutoEnabled" />
+        <label for="backupAutoEnabled">Automatische Backups aktiv</label>
+      </div>
+      <label>Intervall (Stunden)</label>
+      <input type="text" id="backupIntervalHours" placeholder="24" />
+      <button data-save="backup">Speichern</button>
+      <span class="save-status" id="status-backup"></span>
     </section>
   </main>
 

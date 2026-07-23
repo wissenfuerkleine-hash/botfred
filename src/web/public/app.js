@@ -57,9 +57,11 @@ async function loadGuildList() {
 }
 
 async function loadGuild(guildId) {
-  const [channels, cfg] = await Promise.all([
+  const [channels, cfg, roles, categories] = await Promise.all([
     api(`/api/guilds/${guildId}/channels`),
     api(`/api/guilds/${guildId}/config`),
+    api(`/api/guilds/${guildId}/roles`),
+    api(`/api/guilds/${guildId}/categories`),
   ]);
   currentChannels = channels;
 
@@ -84,11 +86,118 @@ async function loadGuild(guildId) {
   document.getElementById('hoursEnd').value = cfg.openingHours.end;
   document.getElementById('hoursTimezone').value = cfg.openingHours.timezone;
 
+  document.getElementById('guildLocked').checked = !!cfg.locked;
+
   renderOffices(cfg.offices, channels.voice);
   await loadCases(guildId);
 
   const nicknameData = await api(`/api/guilds/${guildId}/nickname`);
   document.getElementById('guildNickname').value = nicknameData?.nickname || '';
+
+  // Rollen/Kategorien-Dropdowns für alle Module befüllen
+  const roleTargets = ['verifyGrantRole', 'verifyRemoveRole', 'supportRole', 'rpStartRole', 'rpStopRole', 'new-ticket-cat-role'];
+  roleTargets.forEach((id) => fillSelect(document.getElementById(id), roles, { placeholder: '– keine –' }));
+
+  const categoryTargets = ['supportCategory', 'new-ticket-cat-category'];
+  categoryTargets.forEach((id) => fillSelect(document.getElementById(id), categories, { placeholder: '– keine –' }));
+
+  await loadVerification(guildId);
+  await loadSupportModule(guildId, channels, categories);
+  await loadRp(guildId, channels, roles);
+  await loadTickets(guildId, categories, roles);
+  await loadBackup(guildId);
+}
+
+async function loadVerification(guildId) {
+  const v = await api(`/api/guilds/${guildId}/verification`);
+  if (!v) return;
+  document.getElementById('verifyTitle').value = v.title || '';
+  document.getElementById('verifyMessage').value = v.message || '';
+  document.getElementById('verifyCaptcha').checked = !!v.captchaEnabled;
+  document.getElementById('verifyGrantRole').value = v.grantRoleId || '';
+  document.getElementById('verifyRemoveRole').value = v.removeRoleId || '';
+  document.getElementById('verifyBanner').value = v.bannerUrl || '';
+  document.getElementById('verifyLogo').value = v.logoUrl || '';
+}
+
+async function loadSupportModule(guildId, channels, categories) {
+  const s = await api(`/api/guilds/${guildId}/support`);
+  if (!s) return;
+  fillSelect(document.getElementById('supportWaitingRoom'), channels.voice, { placeholder: '– wählen –' });
+  fillSelect(document.getElementById('supportPingChannel'), channels.text, { placeholder: '– wählen –' });
+  document.getElementById('supportEnabled').checked = !!s.enabled;
+  document.getElementById('supportWaitingRoom').value = s.waitingRoomChannelId || '';
+  document.getElementById('supportPingChannel').value = s.pingChannelId || '';
+  document.getElementById('supportMessage').value = s.message || '';
+  document.getElementById('supportCategory').value = s.categoryId || '';
+  document.getElementById('supportRole').value = s.roleId || '';
+  document.getElementById('supportMusic').value = s.musicSource || '';
+  document.getElementById('supportVolume').value = s.volume ?? 100;
+  document.getElementById('supportVolume-value').textContent = `${s.volume ?? 100}%`;
+}
+
+async function loadRp(guildId, channels, roles) {
+  const r = await api(`/api/guilds/${guildId}/rp`);
+  if (!r) return;
+  ['rpStartChannel', 'rpStopChannel', 'rpStatusChannel'].forEach((id) => fillSelect(document.getElementById(id), channels.text, { placeholder: '– wählen –' }));
+  document.getElementById('rpStartTitle').value = r.startTitle || '';
+  document.getElementById('rpStartMessage').value = r.startMessage || '';
+  document.getElementById('rpStartChannel').value = r.startChannelId || '';
+  document.getElementById('rpStartRole').value = r.startRoleId || '';
+  document.getElementById('rpStopTitle').value = r.stopTitle || '';
+  document.getElementById('rpStopMessage').value = r.stopMessage || '';
+  document.getElementById('rpStopChannel').value = r.stopChannelId || '';
+  document.getElementById('rpStopRole').value = r.stopRoleId || '';
+  document.getElementById('rpStatusChannel').value = r.statusChannelId || '';
+  document.getElementById('rpActiveLabel').textContent = r.active ? '🟢 Gestartet' : '🔴 Gestoppt';
+}
+
+async function loadTickets(guildId, categories, roles) {
+  const t = await api(`/api/guilds/${guildId}/tickets`);
+  if (!t) return;
+  fillSelect(document.getElementById('ticketFeedbackChannel'), currentChannels.text, { placeholder: '– wählen –' });
+  document.getElementById('ticketTitle').value = t.panelTitle || '';
+  document.getElementById('ticketMessage').value = t.panelMessage || '';
+  document.getElementById('ticketFeedbackChannel').value = t.feedbackChannelId || '';
+  document.getElementById('ticketBanner').value = t.bannerUrl || '';
+  document.getElementById('ticketLogo').value = t.logoUrl || '';
+  document.getElementById('ticketOpenMessage').value = t.openMessage || '';
+  document.getElementById('ticketClosedTitle').value = t.closedTitle || '';
+  document.getElementById('ticketClosedMessage').value = t.closedMessage || '';
+  renderTicketCategories(t.categories, categories, roles);
+}
+
+function renderTicketCategories(cats, categories, roles) {
+  const list = document.getElementById('ticket-category-list');
+  list.innerHTML = '';
+  if (!cats || cats.length === 0) {
+    list.innerHTML = '<div class="hint">Noch keine Kategorien angelegt.</div>';
+    return;
+  }
+  cats.forEach((c) => {
+    const catName = categories.find((cat) => cat.id === c.categoryId)?.name || c.categoryId || '–';
+    const roleName = roles.find((r) => r.id === c.roleId)?.name || '–';
+    const div = document.createElement('div');
+    div.className = 'office-item';
+    div.innerHTML = `
+      <span><strong>${c.name}</strong> <span class="hint mono" style="display:inline;">(Kategorie: ${catName}, Rolle: ${roleName}, ${c.staffOnlyClose ? 'nur Team schließt' : 'auch Ersteller darf schließen'})</span></span>
+      <button class="danger" data-remove-ticket-cat="${c.id}">Entfernen</button>
+    `;
+    list.appendChild(div);
+  });
+  list.querySelectorAll('[data-remove-ticket-cat]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await api(`/api/guilds/${currentGuildId}/tickets/categories/${btn.dataset.removeTicketCat}`, { method: 'DELETE' });
+      await loadGuild(currentGuildId);
+    });
+  });
+}
+
+async function loadBackup(guildId) {
+  const b = await api(`/api/guilds/${guildId}/backup`);
+  if (!b) return;
+  document.getElementById('backupAutoEnabled').checked = !!b.autoEnabled;
+  document.getElementById('backupIntervalHours').value = b.intervalHours ?? 24;
 }
 
 function timeAgo(ms) {
@@ -180,6 +289,33 @@ document.getElementById('volume').addEventListener('input', (e) => {
   document.getElementById('volume-value').textContent = `${e.target.value}%`;
 });
 
+document.getElementById('supportVolume').addEventListener('input', (e) => {
+  document.getElementById('supportVolume-value').textContent = `${e.target.value}%`;
+});
+
+document.getElementById('add-ticket-category').addEventListener('click', async () => {
+  const name = document.getElementById('new-ticket-cat-name').value.trim();
+  const categoryId = document.getElementById('new-ticket-cat-category').value || null;
+  const roleId = document.getElementById('new-ticket-cat-role').value || null;
+  if (!name) return;
+  await api(`/api/guilds/${currentGuildId}/tickets/categories`, { method: 'POST', body: JSON.stringify({ name, categoryId, roleId, staffOnlyClose: true }) });
+  document.getElementById('new-ticket-cat-name').value = '';
+  await loadGuild(currentGuildId);
+});
+
+document.getElementById('create-backup').addEventListener('click', async () => {
+  const resultEl = document.getElementById('backup-code-result');
+  resultEl.textContent = 'Erstelle Backup ...';
+  const result = await api(`/api/guilds/${currentGuildId}/backup/create`, { method: 'POST', body: JSON.stringify({}) });
+  if (result?.error) {
+    resultEl.textContent = `Fehler: ${result.error}`;
+    resultEl.style.color = 'var(--red)';
+  } else {
+    resultEl.textContent = `Code (gut aufbewahren): ${result.code}`;
+    resultEl.style.color = 'var(--green)';
+  }
+});
+
 document.querySelectorAll('button[data-save]').forEach((btn) => {
   btn.addEventListener('click', async () => {
     const kind = btn.dataset.save;
@@ -196,6 +332,87 @@ document.querySelectorAll('button[data-save]').forEach((btn) => {
         statusEl.style.color = 'var(--green)';
       }
       setTimeout(() => { statusEl.textContent = ''; }, 3000);
+      return;
+    }
+
+    if (kind === 'lock') {
+      const locked = document.getElementById('guildLocked').checked;
+      await api(`/api/guilds/${currentGuildId}/lock`, { method: 'POST', body: JSON.stringify({ locked }) });
+      flashStatus('lock');
+      return;
+    }
+
+    if (kind === 'verification') {
+      const body = {
+        title: document.getElementById('verifyTitle').value,
+        message: document.getElementById('verifyMessage').value,
+        captchaEnabled: document.getElementById('verifyCaptcha').checked,
+        grantRoleId: document.getElementById('verifyGrantRole').value || null,
+        removeRoleId: document.getElementById('verifyRemoveRole').value || null,
+        bannerUrl: document.getElementById('verifyBanner').value,
+        logoUrl: document.getElementById('verifyLogo').value,
+      };
+      await api(`/api/guilds/${currentGuildId}/verification`, { method: 'POST', body: JSON.stringify(body) });
+      flashStatus('verification');
+      return;
+    }
+
+    if (kind === 'support') {
+      const body = {
+        enabled: document.getElementById('supportEnabled').checked,
+        waitingRoomChannelId: document.getElementById('supportWaitingRoom').value || null,
+        pingChannelId: document.getElementById('supportPingChannel').value || null,
+        message: document.getElementById('supportMessage').value,
+        categoryId: document.getElementById('supportCategory').value || null,
+        roleId: document.getElementById('supportRole').value || null,
+        musicSource: document.getElementById('supportMusic').value,
+        volume: parseInt(document.getElementById('supportVolume').value, 10),
+      };
+      await api(`/api/guilds/${currentGuildId}/support`, { method: 'POST', body: JSON.stringify(body) });
+      flashStatus('support');
+      return;
+    }
+
+    if (kind === 'rp') {
+      const body = {
+        startTitle: document.getElementById('rpStartTitle').value,
+        startMessage: document.getElementById('rpStartMessage').value,
+        startChannelId: document.getElementById('rpStartChannel').value || null,
+        startRoleId: document.getElementById('rpStartRole').value || null,
+        stopTitle: document.getElementById('rpStopTitle').value,
+        stopMessage: document.getElementById('rpStopMessage').value,
+        stopChannelId: document.getElementById('rpStopChannel').value || null,
+        stopRoleId: document.getElementById('rpStopRole').value || null,
+        statusChannelId: document.getElementById('rpStatusChannel').value || null,
+      };
+      await api(`/api/guilds/${currentGuildId}/rp`, { method: 'POST', body: JSON.stringify(body) });
+      flashStatus('rp');
+      return;
+    }
+
+    if (kind === 'tickets') {
+      const body = {
+        panelTitle: document.getElementById('ticketTitle').value,
+        panelMessage: document.getElementById('ticketMessage').value,
+        feedbackChannelId: document.getElementById('ticketFeedbackChannel').value || null,
+        bannerUrl: document.getElementById('ticketBanner').value,
+        logoUrl: document.getElementById('ticketLogo').value,
+        openMessage: document.getElementById('ticketOpenMessage').value,
+        closedTitle: document.getElementById('ticketClosedTitle').value,
+        closedMessage: document.getElementById('ticketClosedMessage').value,
+      };
+      await api(`/api/guilds/${currentGuildId}/tickets`, { method: 'POST', body: JSON.stringify(body) });
+      flashStatus('tickets');
+      return;
+    }
+
+    if (kind === 'backup') {
+      const body = {
+        autoEnabled: document.getElementById('backupAutoEnabled').checked,
+        intervalHours: parseInt(document.getElementById('backupIntervalHours').value, 10) || 24,
+      };
+      await api(`/api/guilds/${currentGuildId}/backup/settings`, { method: 'POST', body: JSON.stringify(body) });
+      flashStatus('backup');
       return;
     }
 
@@ -252,6 +469,7 @@ async function loadBotStatus() {
   document.getElementById('botUsername').value = status.username || '';
   document.getElementById('botAvatarUrl').value = status.avatarUrl || '';
   document.getElementById('botBannerUrl').value = status.bannerUrl || '';
+  document.getElementById('botDescription').value = status.description || '';
 }
 
 document.getElementById('pause-toggle').addEventListener('click', async () => {
@@ -265,9 +483,10 @@ document.getElementById('save-bot-profile').addEventListener('click', async () =
   const username = document.getElementById('botUsername').value.trim();
   const avatarUrl = document.getElementById('botAvatarUrl').value.trim();
   const bannerUrl = document.getElementById('botBannerUrl').value.trim();
+  const description = document.getElementById('botDescription').value;
   const statusEl = document.getElementById('status-bot-profile');
   statusEl.textContent = 'Speichere...';
-  const result = await api('/api/bot-profile', { method: 'POST', body: JSON.stringify({ username, avatarUrl, bannerUrl }) });
+  const result = await api('/api/bot-profile', { method: 'POST', body: JSON.stringify({ username, avatarUrl, bannerUrl, description }) });
   if (result?.error) {
     statusEl.textContent = `Fehler: ${result.error}`;
     statusEl.style.color = 'var(--red)';

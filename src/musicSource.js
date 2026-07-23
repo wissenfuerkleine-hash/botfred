@@ -6,9 +6,16 @@ const config = require('./config');
 
 // prism-media sucht sonst nach einem global installierten "ffmpeg" im PATH.
 // Wir zeigen stattdessen auf das mitgelieferte ffmpeg-static, damit kein
-// separates System-FFmpeg installiert werden muss.
+// separates System-FFmpeg installiert werden muss. Falls das Paket auf der
+// Hosting-Plattform aus irgendeinem Grund nicht sauber installiert werden
+// konnte, soll das NICHT den ganzen Bot crashen - nur Musik funktioniert
+// dann eben nicht.
 if (!process.env.FFMPEG_PATH) {
-  process.env.FFMPEG_PATH = require('ffmpeg-static');
+  try {
+    process.env.FFMPEG_PATH = require('ffmpeg-static');
+  } catch (err) {
+    console.error('[Musik] ffmpeg-static konnte nicht geladen werden - Wartemusik wird nicht funktionieren:', err.message);
+  }
 }
 
 // Für 'local' (mitgelieferte Standard-Datei) und 'file-url' (eigener Link,
@@ -24,6 +31,12 @@ function resourceFromFfmpegInput(input, volume) {
       '-ar', '48000',
       '-ac', '2',
     ],
+  });
+  // Ohne diesen Handler würde ein fehlerhafter Stream (z.B. kaputter Link,
+  // fehlendes ffmpeg-Binary) eine unbehandelte Exception auslösen und den
+  // kompletten Bot-Prozess abstürzen lassen.
+  ffmpeg.on('error', (err) => {
+    console.error('[Musik] FFmpeg-Stream-Fehler:', err.message);
   });
   const resource = createAudioResource(ffmpeg, { inputType: StreamType.Raw, inlineVolume: true });
   resource.volume.setVolume(volume / 100);

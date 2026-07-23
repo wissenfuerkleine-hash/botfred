@@ -509,6 +509,32 @@ kann später ergänzt werden – für den Start reicht `http://server-ip:3000`.
 - **Eigener PC/Raspberry Pi zuhause**: gleiche Schritte wie oben, aber Achtung:
   wenn der Rechner ausgeht oder das Internet zuhause ausfällt, ist der Bot
   offline. Für 24/7-Betrieb ist ein VPS meist zuverlässiger.
-- **Railway/Fly.io** u. ä.: funktionieren auch, sind aber für Voice-Bots etwas
-  fummeliger einzurichten (brauchen einen "Worker"/"Always-on"-Dienst statt
-  einer normalen Web-App) und meist teurer als ein einfacher VPS.
+- **Railway**: siehe eigener Abschnitt unten.
+- **Fly.io** u. ä.: ähnlich wie Railway, aber meist noch etwas mehr manuelle
+  Konfiguration nötig.
+
+### Deployment auf Railway
+
+Das Projekt enthält bereits `railway.json` und `nixpacks.toml` – die sorgen
+dafür, dass Railway die nötigen Build-Werkzeuge (Python, GCC) für die
+nativen Sprach-Module installiert, und dass der Bot bei einem Absturz
+automatisch neu gestartet wird.
+
+1. Neues Projekt auf railway.app anlegen, "Deploy from GitHub repo" (Projekt
+   vorher in ein eigenes GitHub-Repo pushen) oder das ZIP als Repo hochladen.
+2. Unter **Variables** genau dieselben Werte eintragen wie in `.env.example`
+   (DISCORD_TOKEN, CLIENT_ID, CLIENT_SECRET, PUBLIC_URL, OWNER_IDS,
+   ADMIN_PANEL_PASSWORD, SESSION_SECRET, ...). **Keine `.env`-Datei hochladen** –
+   Railway nutzt eigene Variablen statt einer Datei.
+3. `PUBLIC_URL` auf die von Railway vergebene Domain setzen, z. B.
+   `https://dein-projekt.up.railway.app` (Railway setzt den Port automatisch
+   über die `PORT`-Variable, das berücksichtigt der Bot automatisch).
+4. Unter **Settings → Networking** einen öffentlichen Domain-Namen generieren,
+   damit das Dashboard erreichbar ist.
+5. Deploy abwarten, dann in den **Logs** prüfen, ob `Eingeloggt als ...`
+   erscheint. Falls dort Fehler auftauchen (z. B. zu Musik/ffmpeg), läuft der
+   Rest des Bots trotzdem normal weiter – dank der eingebauten Absicherung
+   stürzt der ganze Prozess dadurch nicht mehr ab.
+6. `npm run deploy-commands` muss einmalig **lokal** oder über die Railway-Konsole
+   (Shell-Tab) ausgeführt werden, damit die Slash-Commands bei Discord
+   registriert werden – das passiert nicht automatisch beim Deploy.

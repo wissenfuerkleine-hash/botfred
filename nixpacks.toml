@@ -1,2 +1,10 @@
+providers = ["node"]
+
 [phases.setup]
-nixPkgs = ["...", "nodejs_20", "ffmpeg", "python3", "gcc", "gnumake", "pkg-config"]
+nixPkgs = ["python3", "gcc", "gnumake", "pkg-config"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "npm start"

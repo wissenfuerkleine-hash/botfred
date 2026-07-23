@@ -8,6 +8,7 @@ const voiceMusic = require('../voiceMusic');
 const caseStore = require('../caseStore');
 const botState = require('../botState');
 const ownerStore = require('../ownerStore');
+const backupModule = require('../backup');
 
 const MANAGE_GUILD = BigInt(PermissionsBitField.Flags.ManageGuild);
 const ADMINISTRATOR = BigInt(PermissionsBitField.Flags.Administrator);
@@ -167,6 +168,106 @@ function startWebServer(client) {
     }
   });
 
+  app.get('/api/guilds/:id/roles', requireAuth, requireGuildAccess, async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+    try {
+      const roles = await guild.roles.fetch();
+      const list = roles
+        .filter((r) => r.id !== guild.id && !r.managed)
+        .sort((a, b) => b.position - a.position)
+        .map((r) => ({ id: r.id, name: r.name }));
+      res.json(list);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/guilds/:id/categories', requireAuth, requireGuildAccess, async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+    try {
+      const channels = await guild.channels.fetch();
+      const categories = channels.filter((c) => c && c.type === ChannelType.GuildCategory).map((c) => ({ id: c.id, name: c.name }));
+      res.json(categories);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Server sperren/entsperren (dasselbe wie im /admin-panel, nur hier auch verfügbar) ---
+  app.post('/api/guilds/:id/lock', requireAuth, requireGuildAccess, (req, res) => {
+    const { locked } = req.body || {};
+    guildStore.setLocked(req.params.id, !!locked);
+    res.json({ locked: !!locked });
+  });
+
+  // --- Verifizierung ---
+  app.get('/api/guilds/:id/verification', requireAuth, requireGuildAccess, (req, res) => {
+    res.json(guildStore.getGuild(req.params.id).verification);
+  });
+  app.post('/api/guilds/:id/verification', requireAuth, requireGuildAccess, (req, res) => {
+    guildStore.setVerification(req.params.id, req.body || {});
+    res.json(guildStore.getGuild(req.params.id).verification);
+  });
+
+  // --- Eigenständiges Support-Modul ---
+  app.get('/api/guilds/:id/support', requireAuth, requireGuildAccess, (req, res) => {
+    res.json(guildStore.getGuild(req.params.id).support);
+  });
+  app.post('/api/guilds/:id/support', requireAuth, requireGuildAccess, (req, res) => {
+    guildStore.setSupport(req.params.id, req.body || {});
+    res.json(guildStore.getGuild(req.params.id).support);
+  });
+
+  // --- RP-System ---
+  app.get('/api/guilds/:id/rp', requireAuth, requireGuildAccess, (req, res) => {
+    res.json(guildStore.getGuild(req.params.id).rp);
+  });
+  app.post('/api/guilds/:id/rp', requireAuth, requireGuildAccess, (req, res) => {
+    guildStore.setRp(req.params.id, req.body || {});
+    res.json(guildStore.getGuild(req.params.id).rp);
+  });
+
+  // --- Ticketsystem (Panel-Einstellungen + Kategorien-Liste) ---
+  app.get('/api/guilds/:id/tickets', requireAuth, requireGuildAccess, (req, res) => {
+    res.json(guildStore.getGuild(req.params.id).tickets);
+  });
+  app.post('/api/guilds/:id/tickets', requireAuth, requireGuildAccess, (req, res) => {
+    const { categories, ...settings } = req.body || {};
+    guildStore.setTicketSettings(req.params.id, settings);
+    res.json(guildStore.getGuild(req.params.id).tickets);
+  });
+  app.post('/api/guilds/:id/tickets/categories', requireAuth, requireGuildAccess, (req, res) => {
+    const { name, roleId, categoryId, staffOnlyClose } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'name erforderlich' });
+    const id = guildStore.addTicketCategory(req.params.id, { name, roleId, categoryId, staffOnlyClose });
+    res.json({ id, tickets: guildStore.getGuild(req.params.id).tickets });
+  });
+  app.delete('/api/guilds/:id/tickets/categories/:categoryTicketId', requireAuth, requireGuildAccess, (req, res) => {
+    guildStore.removeTicketCategory(req.params.id, req.params.categoryTicketId);
+    res.json(guildStore.getGuild(req.params.id).tickets);
+  });
+
+  // --- Backup ---
+  app.get('/api/guilds/:id/backup', requireAuth, requireGuildAccess, (req, res) => {
+    res.json(guildStore.getGuild(req.params.id).backup);
+  });
+  app.post('/api/guilds/:id/backup/settings', requireAuth, requireGuildAccess, (req, res) => {
+    guildStore.setBackupSettings(req.params.id, req.body || {});
+    res.json(guildStore.getGuild(req.params.id).backup);
+  });
+  app.post('/api/guilds/:id/backup/create', requireAuth, requireGuildAccess, async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'Server nicht gefunden' });
+    try {
+      const code = await backupModule.createBackup(guild);
+      res.json({ code });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- Konfiguration lesen/schreiben ---
   app.get('/api/guilds/:id/config', requireAuth, requireGuildAccess, (req, res) => {
     res.json(guildStore.getGuild(req.params.id));
@@ -228,13 +329,27 @@ function startWebServer(client) {
   });
 
   // --- Globaler Bot-Status (Pause) & Bot-Profil: nur für den Bot-Besitzer ---
-  app.get('/api/bot-status', requireAuth, requireOwner, (req, res) => {
+  app.get('/api/bot-status', requireAuth, requireOwner, async (req, res) => {
+    let description = null;
+    try {
+      const appRes = await fetch('https://discord.com/api/v10/applications/@me', {
+        headers: { Authorization: `Bot ${config.token}` },
+      });
+      if (appRes.ok) {
+        const appData = await appRes.json();
+        description = appData.description || '';
+      }
+    } catch {
+      // Bio konnte nicht geladen werden - kein kritischer Fehler, Feld bleibt leer
+    }
+
     res.json({
       paused: botState.isPaused(),
       tag: client.user?.tag,
       username: client.user?.username,
       avatarUrl: client.user?.displayAvatarURL({ size: 256 }),
       bannerUrl: client.user?.bannerURL?.({ size: 512 }) || null,
+      description,
     });
   });
 
@@ -245,7 +360,7 @@ function startWebServer(client) {
   });
 
   app.post('/api/bot-profile', requireAuth, requireOwner, async (req, res) => {
-    const { username, avatarUrl, bannerUrl } = req.body || {};
+    const { username, avatarUrl, bannerUrl, description } = req.body || {};
     const results = {};
     try {
       if (username) {
@@ -259,6 +374,15 @@ function startWebServer(client) {
       if (bannerUrl) {
         await client.user.setBanner(bannerUrl);
         results.banner = 'ok';
+      }
+      if (description !== undefined) {
+        const patchRes = await fetch('https://discord.com/api/v10/applications/@me', {
+          method: 'PATCH',
+          headers: { Authorization: `Bot ${config.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description }),
+        });
+        if (!patchRes.ok) throw new Error(`Bio konnte nicht gespeichert werden (${patchRes.status})`);
+        results.description = 'ok';
       }
       res.json({ ok: true, ...results });
     } catch (err) {
