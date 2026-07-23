@@ -1,11 +1,10 @@
 providers = ["node"]
  
 [phases.setup]
-nixPkgs = ["nodejs_18", "python3", "gcc", "gnumake", "pkg-config"]
+nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake", "pkg-config"]
  
 [phases.install]
 cmds = ["npm install"]
  
 [start]
 cmd = "npm start"
- 
